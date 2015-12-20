@@ -175,9 +175,14 @@ net_setup(char *ifip_bind, char *ifip_connect, char *port, char *mirror_addr,
 			    gai_strerror(error));
 	}
 
-	if (ifip_connect != NULL &&
-	    (conn->bind_ai = get_ai_from_ifip(ifip_connect, NULL)) == NULL)
-		errxv(0, 1, "Error resolving connecting if/ip address");
+	if (ifip_connect != NULL) {
+        if ((conn->bind_ai = get_ai_from_ifip(ifip_connect, NULL)) == NULL)
+		    errxv(0, 1, "Error resolving connecting if/ip address");
+        // check if parameter is not an IP
+        if (strchr(ifip_connect, '.') == NULL) {
+            conn->bind_if_name = ifip_connect;
+        }
+    }
 
 	for (ai = conn->serv_ai; ai != NULL; ai = ai->ai_next) {
 		if ((servsock = socket(ai->ai_family,
@@ -252,7 +257,7 @@ net_accept(int fd, short ev, void *data)
 	}
 
 	if (!access_host((struct sockaddr_in *)&cliaddr)) {
-		warnxv(2, "Client %s rejected", 
+		warnxv(2, "Client %s rejected",
 		    inet_ntoa(((struct sockaddr_in *)&cliaddr)->sin_addr));
 		goto out;
 	}
@@ -305,7 +310,7 @@ net_setup_proxy(int clisock, int remsock)
 	int flags;
 	extern int noresolve;
 
-	if ((clidesc = newdesc(BUFFERSZ)) == NULL) 
+	if ((clidesc = newdesc(BUFFERSZ)) == NULL)
 		goto fail;
 	if ((remdesc = newdesc(BUFFERSZ)) == NULL)
 		goto fail1;
