@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <unistd.h>
+#include <net/if.h>
 
 #include <sys/uio.h>
 #ifdef HAVE_CONFIG_H
@@ -138,6 +139,12 @@ _socks4_tryconnect(int clisock, struct sockaddr_in *rem_in,
 		return (-1);
 
 	if ((ai = conn->bind_ai) != NULL) {
+        if (conn->bind_if_name != NULL &&
+            (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, conn->bind_if_name, IFNAMSIZ-1) == -1)) {
+			warnv(0, "bind device()");
+			return (-1);
+        }
+
 		if (bind(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
 			warnv(0, "bind()");
 			return (-1);
@@ -153,7 +160,7 @@ _socks4_tryconnect(int clisock, struct sockaddr_in *rem_in,
 	}
 
 fail_reply:
-	hdr4->vn = 0; 
+	hdr4->vn = 0;
 
 	if (hdr4->cd == SOCKS4_CD_RESOLVE) {
 		/*

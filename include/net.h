@@ -2,7 +2,7 @@
  * net.h
  *
  * Copyright (c) 2001, 2002 Marius Aamodt Eriksen <marius@monkey.org>
- * 
+ *
  * $Id: net.h,v 1.6.2.1 2006/08/19 22:51:38 marius Exp $
  */
 
@@ -21,6 +21,7 @@
 struct conndesc {
 	struct addrinfo *mirror_ai;
 	struct addrinfo *bind_ai;
+    char * bind_if_name;
 	struct addrinfo *serv_ai;
 	struct addrinfo *chain_ai;
 	int              support;
