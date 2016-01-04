@@ -1,0 +1,199 @@
+.\"	$OpenBSD: mdoc.template,v 1.6 2001/02/03 08:22:44 niklas Exp $
+.\"
+.\" The following requests are required for all man pages.
+.Dd August 14, 2002
+.Dt NYLON 1
+.Os
+.Sh NAME
+.Nm nylon
+.Nd a lightweight and highly configurable proxy server
+.Sh SYNOPSIS
+.\" For a program:  program [-abc] file ...
+.Nm nylon
+.Op Fl h 
+.Op Fl v
+.Op Fl V
+.Op Fl f
+.Op Fl s
+.Op Fl n
+.Op Fl 4
+.Op Fl 5
+.Op Fl a Ar list
+.Op Fl d Ar list
+.Op Fl m Ar addr
+.Op Fl p Ar port
+.Op Fl i Ar ip/if
+.Op Fl I Ar ip/if
+.Op Fl P Ar file
+.Op Fl c Ar file
+.Sh DESCRIPTION
+.Nm
+is a proxy server.  This version supports SOCKS 4 and SOCKS 5
+protocols, as well as a mirror mode.
+.Nm
+is fully configurable, and can be configured from either the command
+line or a provided configuration file.
+.Pp
+The options are as follows:
+.Bl -tag -width Ds_imagedir
+.It Fl h
+Displays help.
+.It Fl v
+Increases the verbosity level (can be specified multiple times).
+.It Fl V
+Prints version.
+.It Fl f
+Runs
+.Nm
+in the foreground and prints all output to the terminal.
+.It Fl s
+Forces all output to syslog.
+.It Fl n
+Shows all network addresses as numbers.
+.It Fl 4
+Disables SOCKS4 support
+.It Fl 5
+Disables SOCKS5 support
+.It Fl a Ar list
+Sets the host allow list to 
+.Ar list .
+.It Fl d Ar list
+Sets the host deny list to 
+.Ar list .
+.It Fl m Ar addr
+Runs 
+.Nm
+in mirror mode.  In this mode, any proxy protocol negotiations are
+disregarded, and the address provided is simply mirrored.
+.Ar addr
+is in "host:port" format and specifies the target machine and port to
+mirror.  If no local binding port is specified (via the
+.Cm p
+switch, or in the configuration file),
+.Nm
+will bind to a local port matching the remote port specified.
+.It Fl p Ar port
+Bind server to port
+.Ar port .
+By default, 
+.Nm 
+will bind to the "socks" port (1080).
+.It Fl i Ar ip/if
+Bind server to the interface or address
+.Ar ip/if .
+.It Fl I Ar ip/if
+Make outgoing connections through the interface or address
+.Ar ip/if .
+.It Fl P Ar file
+Specify PID file 
+.Ar file .
+By default, 
+.Ar /var/run/nylon.pid 
+is used.
+.It Fl c Ar file
+Specify configuration file
+.Ar file .
+.El
+.Pp
+The configuration file can be used as a replacement for the command line
+options.  Please see the provided file
+.Ar nylon.conf
+for more information.
+.\" The following requests should be uncommented and used where appropriate.
+.Sh ACCESS
+Access to the services provided by 
+.Nm
+are governed by the the host
+.Ar allow
+and
+.Ar deny
+lists.  These are lists composed of hosts and networks.  Hosts can be
+specified either by their hostname, or their IP address.  Networks are
+specified by a network address and mask in the form "address/bits",
+where "bits" specifies how many bits of the address are to be used to
+represent the network mask.
+.Pp
+Given an address, whether access is given or not is determined as
+such.  If the address matches any address in the 
+.Ar deny
+list, access is explicitly denied.  If the address matches any address
+in the
+.Ar allow 
+list, access is explititly allowed, unless it is also matched in the
+.Ar deny
+list.  If the 
+.Ar deny
+list is empty, only addresses in the 
+.Ar allow
+list are allowed.  If the 
+.Ar allow
+list is empty, all addresses, except for those that are in the 
+.Ar deny
+list, are allowed
+.Pp
+By default, the 
+.Ar allow
+list is set to "localhost" and the 
+.Ar deny
+list set to "" (empty).
+.Sh EXAMPLES
+.Cm nylon -i fxp1 -a \&"localhost trusted.com 10.0.0.0/24\&" -m cnn.com:http
+.Pp
+Mirrors the 
+.Ar http
+service on 
+.Ar cnn.com
+onto the local http port.
+Only hosts coming from 
+.Ar localhost ,
+.Ar trusted.com
+and the network
+.Ar 10.0.0.0/24
+are allowed to use this mirroring service.  Additionally, the server
+binds to the IP address belonging to the ethernet interface
+.Ar fxp1 .
+.Pp
+.Cm nylon -f -a \&"\&" -d \&"nasty.com intruders.com\&" -vvvvvv
+.Pp
+Runs
+.Nm
+as a SOCKS server in the foreground.  All hosts except for 
+.Ar nasty.com
+and
+.Ar intruders.com
+are allowed to access the service.
+.Nm
+runs with a high verbosity level.
+.\" This next request is for sections 2 and 3 function return values only.
+.\" .Sh RETURN VALUES
+.\" The next request is for sections 2 and 3 error and signal handling only.
+.\" .Sh ERRORS
+.\" This next request is for section 4 only.
+.\" .Sh DIAGNOSTICS
+.\" This next request is for sections 1, 6, 7 & 8 only.
+.\" .Sh ENVIRONMENT
+.\" .Sh FILES
+.\".Sh SEE ALSO
+.\".Xr nylon.conf 4
+.\" .Sh COMPATIBILITY
+.Sh STANDARDS
+The 
+.Nm
+server complies with the SOCKS5 (RFC 1928) and SOCKS4 specifications.
+.Sh ACKNOWLEDGEMENTS
+This product includes software developed by Ericsson Radio Systems.
+.Pp
+This product includes software developed by the University of
+California, Berkeley and its contributors.
+.Sh AUTHORS
+The
+.Nm
+software has been developed by Marius Aamodt Eriksen
+.Aq marius@monkey.org .
+.\" .Sh HISTORY
+.\".Sh BUGS
+.\"Please report any bugs to Marius Aamodt Eriksen 
+.\".Aq marius@monkey.org .
+.\" .Sh CAVEATS
+
+\" XXX explain algorithm for allow/deny hosts
