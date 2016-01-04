@@ -17,6 +17,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <net/if.h>
 
 #ifdef HAVE_CONFIG_H
 #include "config.h"
@@ -44,7 +45,7 @@ struct socks5_req {
 	u_char    atyp;        /* Address type */
 	u_int32_t destaddr;    /* Dest address */
 	u_int16_t destport;    /* Dest port */
-}; 
+};
 
 /* Version reply */
 struct socks5_v_repl {
@@ -61,15 +62,15 @@ socks5_negotiate(int clisock, struct conndesc *conn)
 {
 	u_int i;
 	char hostname[256];
-	u_char nmethods, len, junk; 
+	u_char nmethods, len, junk;
 	struct sockaddr_in rem_in;
 	struct socks5_req req5;
 	struct socks5_v_repl rep5;
-	struct hostent *hent;	
-	
+	struct hostent *hent;
+
 	req5.vn = 5;
 	req5.rsv = 0;
-	
+
 	/*
 	 * Start by retrieving number of methods, version number has
 	 * already been consumed by the calling procedure
@@ -83,7 +84,7 @@ socks5_negotiate(int clisock, struct conndesc *conn)
 	/* Eat up methods */
 
 	i = 0;
-	while (i++ < nmethods) 
+	while (i++ < nmethods)
 		if (atomicio(read, clisock, &junk, 1) != 1) {
 			warnv(1, "read()");
 			return (-1);
@@ -133,7 +134,7 @@ socks5_negotiate(int clisock, struct conndesc *conn)
 		hostname[len] = '\0';
 		if ((hent = gethostbyname(hostname)) == NULL) {
 			/* XXX no hstrerror() on solaris */
-#ifndef __sun__			
+#ifndef __sun__
 			warnxv(1, "gethostbyname(): %s", hstrerror(h_errno));
 #endif /* __sun__ */
 			return (-1);
@@ -184,6 +185,13 @@ socks5_connect(int clisock, struct sockaddr_in *rem_in, struct socks5_req *req5,
 	}
 
 	if ((ai = conn->bind_ai) != NULL)
+        if (conn->bind_if_name != NULL) {
+            if (setsockopt(remsock, SOL_SOCKET, SO_BINDTODEVICE, conn->bind_if_name, IFNAMSIZ-1) == -1) {
+                warnv(0, "bind device()");
+                return (-1);
+            }
+        }
+
 		if (bind(remsock, ai->ai_addr, ai->ai_addrlen) == -1) {
 			warnv(0, "bind()");
 			return (-1);
@@ -206,7 +214,7 @@ socks5_connect(int clisock, struct sockaddr_in *rem_in, struct socks5_req *req5,
 		goto fail;
 	}
 
-	if (req5->cd == 1) 
+	if (req5->cd == 1)
 		goto fail;
 
 	return (remsock);
