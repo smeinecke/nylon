@@ -139,10 +139,11 @@ _socks4_tryconnect(int clisock, struct sockaddr_in *rem_in,
 		return (-1);
 
 	if ((ai = conn->bind_ai) != NULL) {
-        if (conn->bind_if_name != NULL &&
-            (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, conn->bind_if_name, IFNAMSIZ-1) == -1)) {
-			warnv(0, "bind device()");
-			return (-1);
+        if (conn->bind_if_name != NULL) {
+            if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, conn->bind_if_name, IFNAMSIZ-1) == -1) {
+                warnv(0, "bind device()");
+                return (-1);
+            }
         }
 
 		if (bind(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
