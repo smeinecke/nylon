@@ -1,0 +1,14 @@
+Source: nylon
+Section: net
+Priority: optional
+Maintainer: unknown <stefan@build.greensec.de>
+Build-Depends: debhelper (>= 9), autotools-dev, libevent-dev
+Standards-Version: 3.9.5
+Homepage: <insert the upstream URL, if relevant>
+#Vcs-Git: git://anonscm.debian.org/collab-maint/nylon.git
+#Vcs-Browser: http://anonscm.debian.org/?p=collab-maint/nylon.git;a=summary
+
+Package: nylon
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: nylon is a lightweight proxy framework, currently supporting SOCKS4/5 and a services mirror mode.

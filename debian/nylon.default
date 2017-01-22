@@ -1,0 +1,11 @@
+# Defaults for nylon initscript
+# sourced by /etc/init.d/nylon
+# installed at /etc/default/nylon by the maintainer scripts
+
+#
+# This is a POSIX shell fragment
+#
+CONFFILE="/etc/nylon.conf"
+
+# Additional options that are passed to the Daemon.
+DAEMON_OPTS=""
