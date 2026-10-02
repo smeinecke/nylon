@@ -36,6 +36,7 @@ mirror_setup(struct conndesc *conn)
 	if ((ai = conn->bind_ai) != NULL &&
 	    bind(remsock, ai->ai_addr, ai->ai_addrlen) == -1) {
 		warnv(0, "bind()");
+		close(remsock);
 		return (-1);
 	}
 

@@ -324,7 +324,7 @@ conf_reinit (void)
 	char *new_conf_addr = 0;
 	struct stat sb;
 
-	if ((stat (conf_path, &sb) == 0) || (errno != ENOENT)) {
+	if (stat (conf_path, &sb) == 0) {
 		sz = sb.st_size;
 		fd = open (conf_path, O_RDONLY);
 		if (fd == -1) {

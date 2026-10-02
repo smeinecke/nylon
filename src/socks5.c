@@ -184,18 +184,20 @@ socks5_connect(int clisock, struct sockaddr_in *rem_in, struct socks5_req *req5,
 		return (-1);
 	}
 
-	if ((ai = conn->bind_ai) != NULL)
-        if (conn->bind_if_name != NULL) {
-            if (setsockopt(remsock, SOL_SOCKET, SO_BINDTODEVICE, conn->bind_if_name, IFNAMSIZ-1) == -1) {
-                warnv(0, "bind device()");
-                return (-1);
-            }
-        }
+	if ((ai = conn->bind_ai) != NULL) {
+		if (conn->bind_if_name != NULL) {
+			if (setsockopt(remsock, SOL_SOCKET, SO_BINDTODEVICE,
+			    conn->bind_if_name, IFNAMSIZ-1) == -1) {
+				warnv(0, "bind device()");
+				goto fail;
+			}
+		}
 
 		if (bind(remsock, ai->ai_addr, ai->ai_addrlen) == -1) {
 			warnv(0, "bind()");
-			return (-1);
+			goto fail;
 		}
+	}
 
 	if (connect(remsock, (struct sockaddr *)rem_in, sizeof(*rem_in)) == -1) {
 		warnv(0, "connect()");
@@ -204,10 +206,22 @@ socks5_connect(int clisock, struct sockaddr_in *rem_in, struct socks5_req *req5,
 		req5->cd = 0;
 	}
 
-	/* getpeername() */
+	/* Fill in our bound address/port for the reply. */
+	{
+		struct sockaddr_in bnd_in;
+		socklen_t bndlen = sizeof(bnd_in);
 
-	req5->atyp = SOCKS5_ATYP_IPV4;
-	/* XXX fill in address and port of our server (getsockname()) */
+		req5->atyp = SOCKS5_ATYP_IPV4;
+		req5->rsv = 0;
+		if (req5->cd == 0 && getsockname(remsock,
+			(struct sockaddr *)&bnd_in, &bndlen) == 0) {
+			req5->destaddr = bnd_in.sin_addr.s_addr;
+			req5->destport = bnd_in.sin_port;
+		} else {
+			req5->destaddr = 0;
+			req5->destport = 0;
+		}
+	}
 
 	if (atomicio(write, clisock, req5, 10) != 10) {
 		warnv(1, "write()");

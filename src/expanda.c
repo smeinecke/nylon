@@ -80,8 +80,10 @@ xalloc(u_int i, char **arr)
 	if (i % DEFAULT_ALLOC == 0) {
 		xrr = realloc(arr, sizeof(char *) * DEFAULT_ALLOC * ++ac);
 		if (xrr == NULL) {
-			arr[i - 1] = NULL;
-			freea(arr);
+			if (arr != NULL) {
+				arr[i - 1] = NULL;
+				freea(arr);
+			}
 			return (NULL);
 		}
 		arr = xrr;

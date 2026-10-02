@@ -112,13 +112,15 @@ warnxv(int level, const char *fmt, ...)
 static void
 vprint(const char *fmt, va_list ap)
 {
+	int saved_errno = errno;
+
 	if (use_syslog) {
 		char msg[1024];
 		if (fmt != NULL) {
 			msg[0] = '\0';
 			vsnprintf(msg, sizeof(msg), fmt, ap);
 			strlcat(msg, ": ", sizeof(msg));
-			strlcat(msg, strerror(errno), sizeof(msg));
+			strlcat(msg, strerror(saved_errno), sizeof(msg));
 			syslog(LOG_INFO, "%s", msg);
 		}
 		return;
@@ -127,7 +129,7 @@ vprint(const char *fmt, va_list ap)
 	fprintf(stderr, "%s: ", __progname);
         if (fmt != NULL)
                 vfprintf(stderr, fmt, ap);
-        fprintf(stderr, ": %s\n", strerror(errno));
+        fprintf(stderr, ": %s\n", strerror(saved_errno));
 }
 
 static void

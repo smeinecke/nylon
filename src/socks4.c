@@ -67,6 +67,7 @@ socks4_negotiate(int clisock, struct conndesc *conn)
 	u_char data, *addr;
 	char hostname[256];
 	int ret;
+	u_int i;
 	struct socks4_hdr hdr4;
 	struct sockaddr_in rem_in;
 	struct hostent *hent;
@@ -92,9 +93,13 @@ socks4_negotiate(int clisock, struct conndesc *conn)
 	};
 
 	/* Eat the username; it is not used */
-	while ((ret = atomicio(read, clisock, &data, 1)) == 1 && data != 0);
+	for (i = 0; i < SOCKS4_MAX_USERID; i++) {
+		ret = atomicio(read, clisock, &data, 1);
+		if (ret != 1 || data == 0)
+			break;
+	}
 
-	if (ret != 1)
+	if (ret != 1 || i == SOCKS4_MAX_USERID)
 		return (-1);
 
 	memset(&rem_in, 0, sizeof(rem_in));
@@ -139,15 +144,18 @@ _socks4_tryconnect(int clisock, struct sockaddr_in *rem_in,
 		return (-1);
 
 	if ((ai = conn->bind_ai) != NULL) {
-        if (conn->bind_if_name != NULL) {
-            if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE, conn->bind_if_name, IFNAMSIZ-1) == -1) {
-                warnv(0, "bind device()");
-                return (-1);
-            }
-        }
+		if (conn->bind_if_name != NULL) {
+			if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE,
+			    conn->bind_if_name, IFNAMSIZ-1) == -1) {
+				warnv(0, "bind device()");
+				close(sock);
+				return (-1);
+			}
+		}
 
 		if (bind(sock, ai->ai_addr, ai->ai_addrlen) == -1) {
 			warnv(0, "bind()");
+			close(sock);
 			return (-1);
 		}
 	}

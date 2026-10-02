@@ -242,6 +242,19 @@ net_setup_cleanup(void *_head)
 	}
 }
 
+/*
+ * Close all listening sockets without tearing down the rest of the
+ * state; used before exec() on SIGHUP so the new image can rebind.
+ */
+void
+net_close_listenq(void)
+{
+	struct listenq *lq;
+
+	TAILQ_FOREACH(lq, &listenq_head, next)
+		close(lq->sock);
+}
+
 static void
 net_accept(int fd, short ev, void *data)
 {
@@ -277,7 +290,12 @@ net_accept(int fd, short ev, void *data)
 
 		assert(remsock >= 0);
 
-		cleanup_cleanup(cleanup);
+		/*
+		 * Close the inherited listening sockets.  The parent's
+		 * cleanup list must not run here: it would unlink the
+		 * PID file while the parent daemon is still running.
+		 */
+		net_setup_cleanup(&listenq_head);
 		cleanup_free(cleanup);
 
 		if ((cleanup = cleanup_new()) == NULL)
@@ -567,21 +585,18 @@ struct addrinfo *
 get_ai_from_addrpair(char *pair)
 {
 	struct addrinfo *ret = NULL;
-	char *port = NULL, *host, *hosti;
+	char *port = NULL, *host;
 
-	if ((hosti = host = strdup(pair)) == NULL)
+	if ((host = strdup(pair)) == NULL)
 		return (NULL);
 
-	while (*hosti++ != '\0')
-		if (*hosti == ':') {
-			*hosti = '\0';
-			port = ++hosti;
-		}
-
-	if (port == NULL) {
+	port = strchr(host, ':');
+	if (port == NULL || port == host || port[1] == '\0' ||
+	    strchr(port + 1, ':') != NULL) {
 		warnxv(0, "Malformed address: %s", pair);
 		goto fail;
 	}
+	*port++ = '\0';
 
 	ret = get_ai_from_ifip(host, port);
  fail:

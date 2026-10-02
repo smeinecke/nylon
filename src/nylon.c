@@ -194,7 +194,7 @@ main(int argc, char **argv)
 		errv(0, 1, "signal_add()");
 
 	/* By now, we might have a new PID, so we store our pidfile */
-	if (stat(pidfilenam, &sb) != -1 && errno == ENOENT) {
+	if (stat(pidfilenam, &sb) == 0) {
 		warnxv(1, "PIDfile %s already exists, skipping", pidfilenam);
 	} else {
 		FILE *pidf;
@@ -251,13 +251,11 @@ gensig_cb(int sig, short ev, void *data)
 void
 sighup_cb(int sig, short ev, void *data)
 {
-	int fd = *(int *)data;
-
 	/* Restart and re-read configuration */
 	warnxv(0, "Received SIGHUP; restarting");
 	/* XXX cleanup */
-	close(fd);
-	execv(xargv[0], xargv);
+	net_close_listenq();
+	execvp(xargv[0], xargv);
 	errv(0, 1, "Restart FAILED");
 }
 

@@ -99,8 +99,17 @@ makechain(void *_head, char **hostlist)
                 for (i = 0; (*host)[i] != '\0' && (*host)[i] != '/'; i++);
 
                 mask.s_addr = 0xFFFFFFFF;
-                if (i != strlen(*host))
-			mask.s_addr <<= 32 - atoi(*host + i + 1);
+                if (i != strlen(*host)) {
+			char *end;
+			long bits = strtol(*host + i + 1, &end, 10);
+
+			if (*end != '\0' || bits < 0 || bits > 32) {
+				warnxv(1, "Invalid prefix length in %s", *host);
+				goto fail;
+			}
+			mask.s_addr = (bits == 0) ? 0 :
+			    0xFFFFFFFF << (32 - bits);
+		}
 
                 (*host)[i] = '\0';
 
