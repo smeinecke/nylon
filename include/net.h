@@ -29,5 +29,6 @@ struct conndesc {
 
 int  net_setup(char *, char *, char *, char *, char *, int);
 void net_close_listenq(void);
+int  resolve_ipv4(const char *, struct in_addr *);
 
 #endif /* NET_H */

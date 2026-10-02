@@ -79,6 +79,7 @@ extern char *__progname;
 void
 setproctitle(const char *fmt, ...)
 {
+	(void)fmt;	/* unused when SPT_TYPE == SPT_NONE */
 #if SPT_TYPE != SPT_NONE
 	va_list ap;
 	

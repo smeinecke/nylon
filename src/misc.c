@@ -17,6 +17,8 @@
 char *
 get_progname(char *argv0)
 {
+	(void)argv0;	/* used only in the !HAVE___PROGNAME path */
+
 #ifdef HAVE___PROGNAME
         extern char *__progname;
 

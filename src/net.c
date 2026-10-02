@@ -81,7 +81,7 @@ struct listenq {
 static TAILQ_HEAD(listenqh, listenq) listenq_head;
 extern cleanup_t *cleanup;
 extern int nchildren, maxchildren;
-static char connstr[512];
+static char connstr[2 * (NI_MAXHOST + NI_MAXSERV) + 8];
 
 static struct addrinfo  *get_ai_from_ifip(char *, char *);
 static struct addrinfo  *get_ai_from_addrpair(char *);
@@ -258,6 +258,29 @@ net_setup_cleanup(void *_head)
 }
 
 /*
+ * Resolve a hostname to an IPv4 address.  Returns 0 on success.
+ */
+int
+resolve_ipv4(const char *host, struct in_addr *out)
+{
+	struct addrinfo hints, *res;
+	int error;
+
+	memset(&hints, 0, sizeof(hints));
+	hints.ai_family = AF_INET;
+	hints.ai_socktype = SOCK_STREAM;
+
+	if ((error = getaddrinfo(host, NULL, &hints, &res)) != 0) {
+		warnxv(1, "getaddrinfo(): %s", gai_strerror(error));
+		return (-1);
+	}
+	*out = ((struct sockaddr_in *)res->ai_addr)->sin_addr;
+	freeaddrinfo(res);
+
+	return (0);
+}
+
+/*
  * Close all listening sockets without tearing down the rest of the
  * state; used before exec() on SIGHUP so the new image can rebind.
  */
@@ -278,6 +301,8 @@ net_accept(int fd, short ev, void *data)
 	int clisock, remsock;
 	struct listenq *lq = (struct listenq *)data;
 	struct conndesc *conn = lq->conn;
+
+	(void)ev;
 
 	if ((clisock = accept(fd, (struct sockaddr *)&cliaddr, &addrlen)) == -1) {
 		warnv(0, "accept()");
@@ -488,6 +513,8 @@ proxy(int fd, short ev, void *data)
 	struct proxydesc *d = (struct proxydesc *)data;
 	int ret;
 
+	(void)fd;	/* events are keyed on d->sock */
+
 	/*
 	 * XXX - what happens when socket errors ... eofpending() on
 	 * read, then what happens on write?  should we perhaps
@@ -535,7 +562,7 @@ proxy(int fd, short ev, void *data)
 			goto out;
 		}
 
-		if (ret == d->pos) {
+		if ((u_int)ret == d->pos) {
 			d->pos = 0;
 		} else {
 			memmove(d->iov.iov_base, d->iov.iov_base + ret,

@@ -70,7 +70,6 @@ socks5_negotiate(int clisock, struct conndesc *conn)
 	struct sockaddr_in rem_in;
 	struct socks5_req req5;
 	struct socks5_v_repl rep5;
-	struct hostent *hent;
 
 	req5.vn = 5;
 	req5.rsv = 0;
@@ -141,15 +140,9 @@ socks5_negotiate(int clisock, struct conndesc *conn)
 			return (-1);
 		}
 		hostname[len] = '\0';
-		if ((hent = gethostbyname(hostname)) == NULL) {
-			/* XXX no hstrerror() on solaris */
-#ifndef __sun__
-			warnxv(1, "gethostbyname(): %s", hstrerror(h_errno));
-#endif /* __sun__ */
+		if (resolve_ipv4(hostname, &rem_in.sin_addr) == -1)
 			return (-1);
-		}
 		rem_in.sin_family = AF_INET;
-		rem_in.sin_addr = *(struct in_addr *)hent->h_addr;
 		break;
 	default:
 		return (-1);
@@ -301,6 +294,17 @@ socks5_bind(int clisock, struct sockaddr_in *tgt_in, struct socks5_req *req5)
         req5->rsv = 0;
         req5->destaddr = cli_in.sin_addr.s_addr;
         req5->destport = cli_in.sin_port;
+
+	/* The inbound peer is subject to the client ACL. */
+	if (!access_host(&cli_in)) {
+		warnxv(1, "BIND peer %s rejected",
+		    inet_ntoa(cli_in.sin_addr));
+		req5->cd = 2;	/* connection not allowed by ruleset */
+		atomicio(write, clisock, req5, 10);
+		close(tgtsock);
+		tgtsock = -1;
+		goto out;
+	}
 
 	/* Send second reply */
 	if (atomicio(write, clisock, req5, 10) != 10) {

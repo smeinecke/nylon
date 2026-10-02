@@ -45,20 +45,22 @@ atomicio(f, fd, _s, n)
 	size_t n;
 {
 	char *s = _s;
-	ssize_t res, pos = 0;
+	ssize_t res;
+	size_t pos = 0;
 
-	while (n > pos) {
+	while (pos < n) {
 		res = (f) (fd, s + pos, n - pos);
 		switch (res) {
 		case -1:
 			if (errno == EINTR || errno == EAGAIN)
 				continue;
+			/* FALLTHROUGH */
 		case 0:
 			if (pos != 0)
 				return (pos);
 			return (res);
 		default:
-			pos += res;
+			pos += (size_t)res;
 		}
 	}
 	return (pos);

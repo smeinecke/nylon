@@ -116,13 +116,13 @@ vprint(const char *fmt, va_list ap)
 
 	if (use_syslog) {
 		char msg[1024];
-		if (fmt != NULL) {
-			msg[0] = '\0';
+
+		msg[0] = '\0';
+		if (fmt != NULL)
 			vsnprintf(msg, sizeof(msg), fmt, ap);
-			strlcat(msg, ": ", sizeof(msg));
-			strlcat(msg, strerror(saved_errno), sizeof(msg));
-			syslog(LOG_INFO, "%s", msg);
-		}
+		strlcat(msg, ": ", sizeof(msg));
+		strlcat(msg, strerror(saved_errno), sizeof(msg));
+		syslog(LOG_INFO, "%s", msg);
 		return;
 	}
 

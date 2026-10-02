@@ -186,7 +186,7 @@ static void
 conf_parse_line (int trans, char *line, size_t sz)
 {
 	char *cp = line;
-	int i;
+	size_t i;
 	static char *section = 0;
 	static int ln = 0;
 
@@ -269,6 +269,8 @@ conf_parse (int trans, char *buf, size_t sz)
 void
 conf_load_defaults (int tr)
 {
+	(void)tr;
+
 	/* No defaults so far *
 	conf_set (tr, "General", "Port", "80", 0, 1);
 	conf_set (tr, "General", "IP-Address", "0.0.0.0", 0, 1);
@@ -280,7 +282,7 @@ conf_load_defaults (int tr)
 void
 conf_init (void)
 {
-	int i;
+	size_t i;
 
 	for (i = 0; i < sizeof conf_bindings / sizeof conf_bindings[0]; i++)
 		LIST_INIT (&conf_bindings[i]);
@@ -293,7 +295,8 @@ void
 conf_reinit (void)
 {
 	struct conf_binding *cb = 0;
-	int fd, i, trans;
+	int fd, trans;
+	size_t i;
 	off_t sz;
 	char *new_conf_addr = 0;
 	struct stat sb;

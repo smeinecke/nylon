@@ -42,7 +42,7 @@
                     (w) = p;   \
             } while (0)
 
-void usage(void);
+void usage(void) NYLON_NORETURN;
 
 struct event sigchldev, sighupev, sigtermev, sigintev;
 
@@ -287,6 +287,9 @@ gensig_cb(int sig, short ev, void *data)
 {
 	char *sigstr;
 
+	(void)ev;
+	(void)data;
+
 	switch (sig) {
 	case SIGTERM:
 		sigstr = "SIGTERM";
@@ -306,6 +309,10 @@ gensig_cb(int sig, short ev, void *data)
 void
 sighup_cb(int sig, short ev, void *data)
 {
+	(void)sig;
+	(void)ev;
+	(void)data;
+
 	/* Restart and re-read configuration */
 	if (getpid() != daemon_pid) {
 		/*
@@ -328,6 +335,10 @@ void
 sigchld_cb(int sig, short ev, void *data)
 {
 	int status;
+
+	(void)sig;
+	(void)ev;
+	(void)data;
 	pid_t pid;
 
 	/* The Grim Children Reaper */

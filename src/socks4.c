@@ -71,7 +71,6 @@ socks4_negotiate(int clisock, struct conndesc *conn)
 	u_int i;
 	struct socks4_hdr hdr4;
 	struct sockaddr_in rem_in;
-	struct hostent *hent;
 
 	/* This is already implied ... */
 	hdr4.vn = 4;
@@ -114,10 +113,9 @@ socks4_negotiate(int clisock, struct conndesc *conn)
 		if (_getstr(clisock, hostname, sizeof(hostname)) < 0)
 			return (-1);
 
-		if ((hent = gethostbyname(hostname)) == NULL) {
+		if (resolve_ipv4(hostname, &rem_in.sin_addr) == -1) {
 			hdr4.cd = SOCKS4_CD_REJECT;
 		} else {
-			rem_in.sin_addr = *(struct in_addr *)hent->h_addr;
 			/*
 			 * Send back the resolved address as well, for
 			 * tor-resolve.
