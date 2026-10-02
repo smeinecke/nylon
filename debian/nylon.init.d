@@ -28,29 +28,14 @@ test -f $DAEMON || exit 0
 
 set -e
 
-# This function makes sure that the Dante server can write to the pid-file.
-touch_pidfile ()
-{
-  if [ -r $CONFFILE ]; then
-    uid="`sed -n -e 's/[[:space:]]//g' -e 's/#.*//' -e '/^user\.privileged/{s/[^:]*://p;q;}' $CONFFILE`"
-    if [ -n "$uid" ]; then
-      touch $PIDFILE
-      chown $uid $PIDFILE
-    fi
-  fi
-}
-		
 case "$1" in
   start)
-	if ! egrep -cve '^ *(#|$)' \
-	    -e '^(logoutput|user\.((not)?privileged|libwrap)):' \
-	    $CONFFILE > /dev/null
+	if ! egrep -cve '^ *(#|$)' $CONFFILE > /dev/null 2>&1
 	then
 		echo "Not starting $DESC: not configured."
 		exit 0
 	fi
 	echo -n "Starting $DESC: "
-	touch_pidfile
 	start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE \
 		--exec $DAEMON -- $DAEMON_OPTS
 	echo "$NAME."
@@ -71,7 +56,7 @@ case "$1" in
 	#
 	 echo "Reloading $DESC configuration files."
 	 start-stop-daemon --stop --signal 1 --quiet --pidfile \
-		$PIDFILE --exec $DAEMON -- -D
+		$PIDFILE --exec $DAEMON
   ;;
   restart)
 	#
@@ -82,7 +67,6 @@ case "$1" in
 	echo -n "Restarting $DESC: "
 	start-stop-daemon --stop --quiet --pidfile $PIDFILE --exec $DAEMON
 	sleep 1
-	touch_pidfile
 	start-stop-daemon --start --quiet --pidfile $PIDFILE \
 	  --exec $DAEMON -- $DAEMON_OPTS
 	echo "$NAME."

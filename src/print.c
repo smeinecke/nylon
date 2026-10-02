@@ -146,38 +146,3 @@ vprintx(const char *fmt, va_list ap)
                 vfprintf(stderr, fmt, ap);
         fprintf(stderr, "\n");
 }
-
-/*
- * Assumes 80 character wide screen.  Use termcap, or etc.  to
- * determine real width and do this dynamically.
- *       if (ioctl(fileno(stdout), TIOCGWINSZ, &winsz) != -1)
- *               width = winsz.ws_col && winsz.ws_col < 256 ? winsz.ws_col : 80;
- *       else
- *               width = 80;
- */
-
-/*
- * XXX only do if isatty(); ...
- */
-void
-print_dump(u_char *buf, int len)
-{
-	int i, j, goback;
-
-	printf("%s: ", __progname);
-	
-	for (i = 0; i < len; ++i) {
-		printf("%02x ", buf[i]);
-		if ((goback = i % 16) == 15 || i == len - 1) {
-			for (j = 15 - goback; j >= 0; j--) printf("   ");
-			for (j = i - goback; j <= i; j++)
-				if (buf[j] > 31 && buf[j] < 127)
-					printf("%c", buf[j]);
-				else
-					printf(".");
-			if (i != len - 1)
-				printf("\n%s: ", __progname);
-		} 
-	}
-	printf("\n");
-}

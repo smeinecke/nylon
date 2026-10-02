@@ -19,13 +19,17 @@ export DEB_BUILD_MAINT_OPTIONS = hardening=+all
 
 # main packaging script based on dh7 syntax
 %:
-	dh $@  --with autotools-dev
+	dh $@
 
-# debmake generated override targets
-# This is example for Cmake (See http://bugs.debian.org/641051 )
-#override_dh_auto_configure:
-#	dh_auto_configure -- \
-#	-DCMAKE_LIBRARY_PATH=$(DEB_HOST_MULTIARCH)
+# The shipped autotools files predate autoreconf-friendly inputs and
+# autoconf/automake are not build dependencies; never regenerate them.
+override_dh_autoreconf:
+
+# The binary goes to usr/sbin via debian/nylon.install; drop the duplicate
+# copy that automake's bin_PROGRAMS installs into usr/bin.
+override_dh_auto_install:
+	dh_auto_install
+	rm -rf debian/nylon/usr/bin
 
 
 

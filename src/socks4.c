@@ -23,6 +23,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #include "atomicio.h"
+#include "access.h"
 #include "print.h"
 #include "net.h"
 #include "socks4.h"
@@ -125,6 +126,13 @@ socks4_negotiate(int clisock, struct conndesc *conn)
 		}
 	} else {
 		rem_in.sin_addr.s_addr = hdr4.destaddr;
+	}
+
+	/* Destination filtering */
+	if (hdr4.cd == SOCKS4_CD_CONNECT && !access_target(&rem_in)) {
+		warnxv(1, "Rejected target %s:%d", inet_ntoa(rem_in.sin_addr),
+		    ntohs(rem_in.sin_port));
+		hdr4.cd = SOCKS4_CD_REJECT;
 	}
 
  	return (_socks4_tryconnect(clisock, &rem_in, &hdr4, conn));

@@ -72,23 +72,6 @@ cleanup_add(struct cleanup *clup, void (*f)(void *), void *handler)
 	return (0);
 }
 
-int
-cleanup_remove(struct cleanup *clup, void (*f)(void *), void *handler)
-{
-	struct cleanupq *search;
-
-	TAILQ_FOREACH(search, &clup->head, next)
-		if (search->f == f && search->handler == handler)
-			break;
-
-	if (search != NULL) {
-		TAILQ_REMOVE(&clup->head, search, next);
-		free(search);
-		return (0);
-	}
-
-	return (-1);
-}
 
 void
 cleanup_cleanup(struct cleanup *clup)
@@ -102,10 +85,3 @@ cleanup_cleanup(struct cleanup *clup)
 	}
 }
 
-void
-cleanup_close(void *_fd)
-{
-	int fd = *(int *)_fd;
-
-	close(fd);
-}

@@ -25,44 +25,75 @@
 #include "expanda.h"
 #include "print.h"
 
-struct ip_chain { 
+struct ip_chain {
         struct in_addr        addr;
         struct in_addr        mask;
         TAILQ_ENTRY(ip_chain) next;
 };
 
 static TAILQ_HEAD(ip_chainh, ip_chain) allow_chain, deny_chain;
+static struct ip_chainh tallow_chain, tdeny_chain;
 
 static int  makechain(void *, char **);
 static void destroychain(void *);
+static void buildchain(struct ip_chainh *, char *, char *);
+static int  checkchain(struct ip_chainh *, struct ip_chainh *,
+    struct sockaddr_in *);
 
 void
 access_setup(char *allow, char *deny)
 {
-	char **arr;
-
 	TAILQ_INIT(&allow_chain);
 	TAILQ_INIT(&deny_chain);
 
-	if ((arr = expanda(allow)) == NULL)
-		errxv(0, 1, "Error expanding allow list");
-	if (makechain(&allow_chain, arr) == -1)
-		errxv(0, 1, "Error making allow list");
-	freea(arr);
-	
-	if ((arr = expanda(deny)) == NULL)
-		errxv(0, 1, "Error expanding deny list");
-	if (makechain(&deny_chain, arr) == -1)
-		errxv(0, 1, "Error making deny list");
+	buildchain(&allow_chain, allow, "allow");
+	buildchain(&deny_chain, deny, "deny");
+}
+
+void
+access_target_setup(char *allow, char *deny)
+{
+	TAILQ_INIT(&tallow_chain);
+	TAILQ_INIT(&tdeny_chain);
+
+	buildchain(&tallow_chain, allow, "target allow");
+	buildchain(&tdeny_chain, deny, "target deny");
+}
+
+static void
+buildchain(struct ip_chainh *head, char *list, char *what)
+{
+	char **arr;
+
+	if (list == NULL || *list == '\0')
+		return;
+
+	if ((arr = expanda(list)) == NULL)
+		errxv(0, 1, "Error expanding %s list", what);
+	if (makechain(head, arr) == -1)
+		errxv(0, 1, "Error making %s list", what);
 	freea(arr);
 }
 
 int
 access_host(struct sockaddr_in *in)
 {
+	return (checkchain(&deny_chain, &allow_chain, in));
+}
+
+int
+access_target(struct sockaddr_in *in)
+{
+	return (checkchain(&tdeny_chain, &tallow_chain, in));
+}
+
+static int
+checkchain(struct ip_chainh *deny, struct ip_chainh *allow,
+    struct sockaddr_in *in)
+{
 	int a = 0;
  	struct ip_chain *node;
-	struct ip_chainh *ip_list[] = {&deny_chain, &allow_chain, NULL};
+	struct ip_chainh *ip_list[] = {deny, allow, NULL};
 	struct ip_chainh **il = ip_list;
 
 	do {
@@ -78,7 +109,7 @@ access_host(struct sockaddr_in *in)
 		a = 1;
 	} while (*(++il));
 
-	if (TAILQ_EMPTY(&allow_chain))
+	if (TAILQ_EMPTY(allow))
 		return (1);
 
 	return (0);
@@ -159,5 +190,5 @@ destroychain(void *_head)
 	while ((node = TAILQ_FIRST(head)) != NULL) {
 		TAILQ_REMOVE(head, node, next);
 		free(node);
-	}	
+	}
 }

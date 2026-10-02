@@ -24,6 +24,7 @@
 #endif /* HAVE_CONFIG_H */
 
 #include "atomicio.h"
+#include "access.h"
 #include "print.h"
 #include "net.h"
 
@@ -185,6 +186,19 @@ socks5_connect(int clisock, struct sockaddr_in *rem_in, struct socks5_req *req5,
 {
 	int remsock;
 	struct addrinfo *ai;
+
+	/* Destination filtering */
+	if (!access_target(rem_in)) {
+		warnxv(1, "Rejected target %s:%d", inet_ntoa(rem_in->sin_addr),
+		    ntohs(rem_in->sin_port));
+		req5->cd = 2;	/* connection not allowed by ruleset */
+		req5->rsv = 0;
+		req5->atyp = SOCKS5_ATYP_IPV4;
+		req5->destaddr = 0;
+		req5->destport = 0;
+		atomicio(write, clisock, req5, 10);
+		return (-1);
+	}
 
 	/* XXX use bind_ai for socket creation, also */
 	if ((remsock = socket(AF_INET, SOCK_STREAM, 0)) == -1) {

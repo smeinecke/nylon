@@ -14,10 +14,13 @@
 #include <netinet/in.h>
 
 #include <errno.h>
+#include <grp.h>
+#include <pwd.h>
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
 #include <stdlib.h>
+#include <string.h>
 #include <event.h>
 
 #ifdef HAVE_CONFIG_H
@@ -64,6 +67,7 @@ void        sighup_cb(int, short, void *);
 void        gensig_cb(int, short, void *);
 void        signal_setup(void);
 static void unlink_pidfile_cb(void *);
+static void drop_privileges(char *, char *);
 
 int
 main(int argc, char **argv)
@@ -71,7 +75,8 @@ main(int argc, char **argv)
 	int opt, foreground, verbose, use_syslog, support;
 	static int servsock;
 	char *bind_ifip, *connect_ifip, *pidfilenam, *allow_hosts, *deny_hosts,
-	    *mirror_addr, *bind_port;
+	    *mirror_addr, *bind_port, *allow_targets, *deny_targets,
+	    *drop_user, *drop_group;
 	struct stat sb;
 
 	__progname = get_progname(argv[0]);
@@ -87,8 +92,10 @@ main(int argc, char **argv)
 	bind_port = mirror_addr = connect_ifip = bind_ifip = NULL;
 	allow_hosts = "127.0.0.1";
 	deny_hosts = "";
+	allow_targets = deny_targets = NULL;
+	drop_user = drop_group = NULL;
 
-#define GETOPT_STR "hvVfsn45p:i:I:P:c:m:a:d:"
+#define GETOPT_STR "hvVfsn45p:i:I:P:c:m:a:d:A:D:"
 	while ((opt = getopt(argc, argv, GETOPT_STR)) != -1)
 		if (opt == 'c')
 			conf_path = optarg;
@@ -105,7 +112,11 @@ main(int argc, char **argv)
 		CONF_SAVE(allow_hosts, conf_get_str("Server", "Allow-IP"));
 		CONF_SAVE(deny_hosts, conf_get_str("Server", "Deny-IP"));
 		CONF_SAVE(mirror_addr, conf_get_str("Server", "Mirror-Address"));
+		CONF_SAVE(allow_targets, conf_get_str("Server", "Allow-Target-IP"));
+		CONF_SAVE(deny_targets, conf_get_str("Server", "Deny-Target-IP"));
 		CONF_SAVE(pidfilenam, conf_get_str("General", "PIDFile"));
+		CONF_SAVE(drop_user, conf_get_str("General", "User"));
+		CONF_SAVE(drop_group, conf_get_str("General", "Group"));
 		verbose = conf_get_num("General", "Verbose", 0);
 		use_syslog = conf_get_num("General", "Syslog", 0);
 		maxchildren = conf_get_num("General", "No-Simultaneous-Conn", 0);
@@ -131,6 +142,12 @@ main(int argc, char **argv)
 			break;
 		case 'd':
 			deny_hosts = optarg;
+			break;
+		case 'A':
+			allow_targets = optarg;
+			break;
+		case 'D':
+			deny_targets = optarg;
 			break;
 		case 's':
  			use_syslog = 1;
@@ -193,6 +210,7 @@ main(int argc, char **argv)
 	servsock = net_setup(bind_ifip, connect_ifip, bind_port, mirror_addr,
 	    NULL, support);
 	access_setup(allow_hosts, deny_hosts);
+	access_target_setup(allow_targets, deny_targets);
 	signal_setup();
 
 	signal_set(&sighupev, SIGHUP, sighup_cb, &servsock);
@@ -215,6 +233,21 @@ main(int argc, char **argv)
 		} else {
 			warnv(1, "Failed creating PIDfile %s", pidfilenam);
 		}
+	}
+
+	/*
+	 * Drop root privileges now that sockets are bound and the
+	 * PID file is written.  Outgoing connections bound to an
+	 * interface *name* need CAP_NET_RAW per connection (in the
+	 * children), so privileges are retained in that case.
+	 */
+	if (geteuid() == 0) {
+		if (connect_ifip != NULL && strchr(connect_ifip, '.') == NULL)
+			warnxv(0, "Not dropping privileges: connecting "
+			    "interface '%s' requires CAP_NET_RAW",
+			    connect_ifip);
+		else
+			drop_privileges(drop_user, drop_group);
 	}
 
 	event_dispatch();
@@ -294,6 +327,37 @@ unlink_pidfile_cb(void *handler)
 	unlink(pidfilenam);
 }
 
+static void
+drop_privileges(char *user, char *group)
+{
+	struct passwd *pw;
+	struct group *gr;
+	gid_t gid;
+
+	if (user == NULL)
+		user = "nobody";
+
+	if ((pw = getpwnam(user)) == NULL)
+		errxv(0, 1, "drop_privileges: unknown user %s", user);
+
+	gid = pw->pw_gid;
+	if (group != NULL) {
+		if ((gr = getgrnam(group)) == NULL)
+			errxv(0, 1, "drop_privileges: unknown group %s", group);
+		gid = gr->gr_gid;
+	}
+
+	if (setgroups(1, &gid) == -1)
+		errv(0, 1, "setgroups()");
+	if (setgid(gid) == -1)
+		errv(0, 1, "setgid()");
+	if (setuid(pw->pw_uid) == -1)
+		errv(0, 1, "setuid()");
+
+	warnxv(0, "Dropped privileges to %s(%d)/%d",
+	    user, (int)pw->pw_uid, (int)gid);
+}
+
 void
 usage(void)
 {
@@ -308,6 +372,8 @@ usage(void)
 	    "\t-n         Do not resolve IP addresses\n"
 	    "\t-a <list>  Set IP allow list to <list>\n"
 	    "\t-d <list>  Set IP deny list to <list>\n"
+	    "\t-A <list>  Set target IP allow list to <list>\n"
+	    "\t-D <list>  Set target IP deny list to <list>\n"
 	    "\t-m <addr>  Mirror address/port pair <addr> in the format \"address:port\"\n"
 	    "\t-p <port>  Bind to <port> instead of the default 1080\n"
 	    "\t-i <if/ip> Bind to interface or IP address <if/ip>\n"

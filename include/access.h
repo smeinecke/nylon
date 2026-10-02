@@ -11,6 +11,8 @@
 #define ACCESS_H
 
 void access_setup(char *, char *);
+void access_target_setup(char *, char *);
 int  access_host(struct sockaddr_in *);
+int  access_target(struct sockaddr_in *);
 
 #endif /* ACCESS_H */

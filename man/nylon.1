@@ -60,6 +60,15 @@ Sets the host allow list to
 .It Fl d Ar list
 Sets the host deny list to 
 .Ar list .
+.It Fl A Ar list
+Sets the target allow list to
+.Ar list .
+This restricts which destination addresses clients may connect to
+through the proxy.  If unset, all targets are permitted.
+.It Fl D Ar list
+Sets the target deny list to
+.Ar list .
+Denied target ranges are checked before allowed target ranges.
 .It Fl m Ar addr
 Runs 
 .Nm
@@ -136,6 +145,33 @@ By default, the
 list is set to "localhost" and the 
 .Ar deny
 list set to "" (empty).
+.Pp
+A second, independent pair of lists,
+.Ar Allow-Target-IP
+and
+.Ar Deny-Target-IP
+(the
+.Fl A
+and
+.Fl D
+command line switches), filters the destinations clients may connect
+to.  These default to
+"" (empty), permitting every reachable target; to prevent clients from
+reaching loopback or internal networks through the proxy, deny those
+ranges explicitly, e.g. in
+.Ar nylon.conf :
+.Bd -literal -offset indent
+Deny-Target-IP=127.0.0.0/8 169.254.0.0/16
+.Ed
+.Pp
+When started as root,
+.Nm
+drops privileges to the user given by
+.Ar User
+("nobody" by default) after binding its sockets and writing the PID
+file.  This is skipped when
+.Ar Connecting-Interface
+refers to an interface name, since that feature requires CAP_NET_RAW.
 .Sh EXAMPLES
 .Cm nylon -i fxp1 -a \&"localhost trusted.com 10.0.0.0/24\&" -m cnn.com:http
 .Pp

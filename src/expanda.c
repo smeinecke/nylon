@@ -25,12 +25,12 @@ static char **xalloc(u_int, char **);
 char **
 expanda(const char *_str)
 {
-	char **arr = NULL, *tok, *str;
+	char **arr = NULL, *tok, *str, *orig;
 	u_int i, ac;
 
 	ac = i = 0;
 
-	if ((str = strdup(_str)) == NULL)
+	if ((orig = str = strdup(_str)) == NULL)
 		return (NULL);
 
 	while((tok = strsep(&str, " \t")) != NULL) {
@@ -48,13 +48,14 @@ expanda(const char *_str)
 		goto fail;
 
 	arr[i] = NULL;
+	free(orig);
 
 	return (arr);
 
  fail:
 	if (arr != NULL)
 		freea(arr);
-	free(str);
+	free(orig);
 	return (NULL);
 }
 
