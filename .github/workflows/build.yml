@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os-version: ["stretch", "buster", "bullseye"]
+        os-version: ["stretch", "buster", "bullseye", "bookworm", "trixie"]
     steps:
       - uses: actions/checkout@v6
       - uses: jtdor/build-deb-action@v1
@@ -26,8 +26,8 @@ jobs:
         with:
           docker-image: "debian:${{ matrix.os-version }}-slim"
           buildpackage-opts: --build=binary --no-sign
-          # All matrix dists are EOL: stretch and buster only exist on
-          # archive.debian.org; bullseye-security was removed from
+          # EOL dists need rewritten apt sources: stretch and buster only
+          # exist on archive.debian.org; bullseye-security was removed from
           # deb.debian.org but is not archived yet, so pin bullseye to the
           # snapshot its Docker image was built from (matches the image's
           # installed package versions).
