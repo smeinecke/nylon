@@ -17,17 +17,47 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os-version: ["stretch", "buster", "bullseye"]    
+        os-version: ["stretch", "buster", "bullseye"]
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v6
       - uses: jtdor/build-deb-action@v1
         env:
           DEB_BUILD_OPTIONS: noautodbgsym
         with:
           docker-image: "debian:${{ matrix.os-version }}-slim"
           buildpackage-opts: --build=binary --no-sign
+          # All matrix dists are EOL: stretch and buster only exist on
+          # archive.debian.org; bullseye-security was removed from
+          # deb.debian.org but is not archived yet, so pin bullseye to the
+          # snapshot its Docker image was built from (matches the image's
+          # installed package versions).
+          setup-hook: |
+            case "${{ matrix.os-version }}" in
+              stretch)
+                printf '%s\n' \
+                  'deb http://archive.debian.org/debian stretch main' \
+                  'deb http://archive.debian.org/debian-security stretch/updates main' \
+                  > /etc/apt/sources.list
+                ;;
+              buster)
+                printf '%s\n' \
+                  'deb http://archive.debian.org/debian buster main' \
+                  'deb http://archive.debian.org/debian buster-updates main' \
+                  'deb http://archive.debian.org/debian-security buster/updates main' \
+                  > /etc/apt/sources.list
+                ;;
+              bullseye)
+                printf '%s\n' \
+                  'deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye main' \
+                  'deb http://snapshot.debian.org/archive/debian-security/20260824T000000Z bullseye-security main' \
+                  'deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye-updates main' \
+                  > /etc/apt/sources.list
+                ;;
+            esac
+            echo 'Acquire::Check-Valid-Until "false";' \
+              > /etc/apt/apt.conf.d/99eol-dists
       - name: Upload deb files
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: "packages-${{ matrix.os-version }}"
           path: ./debian/artifacts/*
