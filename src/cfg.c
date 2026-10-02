@@ -440,8 +440,10 @@ conf_set (int transaction, char *section, char *tag, char *value, int override,
 		free (node->tag);
 	if (node->section)
 		free (node->section);
-	if (node)
+	if (node) {
+		TAILQ_REMOVE (&conf_trans_queue, node, link);
 		free (node);
+	}
 	return (1);
 }
 

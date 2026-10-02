@@ -1,3 +1,20 @@
+nylon (1.21-2) unstable; urgency=medium
+
+  * Fix SOCKS5 CONNECT NULL-deref crash when no connecting interface is set.
+  * Fix pidfile being unlinked by the first proxied connection.
+  * Fix SOCKS5 method negotiation to only accept offered methods; BIND
+    replies now carry the real bound address and a cleared RSV field.
+  * Enforce No-Simultaneous-Conn; bound child handshakes with a 60s alarm;
+    ignore SIGPIPE; guard SIGHUP re-exec against proxy children.
+  * Drop privileges to [General] User=/Group= (default nobody) after bind.
+  * Add Allow-Target-IP/Deny-Target-IP destination filtering (-A/-D).
+  * Fix CIDR mask UB, unbounded SOCKS4 USERID read, config/file-descriptor
+    leaks, dead unsafe code, and shipped config key names.
+  * Enable full build hardening; install only sbin/nylon; debhelper compat 10.
+
+ -- Stefan Meinecke <meinecke@greensec.de>  Fri, 02 Oct 2026 22:15:52 +0200
+
+
 nylon (1.21-1) unstable; urgency=low
 
   * Initial release

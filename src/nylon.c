@@ -67,7 +67,12 @@ void        sighup_cb(int, short, void *);
 void        gensig_cb(int, short, void *);
 void        signal_setup(void);
 static void unlink_pidfile_cb(void *);
+static int  pidfile_is_running(char *);
 static void drop_privileges(char *, char *);
+
+/* Pid of the daemon proper; proxy children forked per connection
+ * inherit the signal handlers but must not act on SIGHUP. */
+static pid_t daemon_pid;
 
 int
 main(int argc, char **argv)
@@ -199,6 +204,9 @@ main(int argc, char **argv)
 			errv(0, 1, "daemon()");
 		use_syslog = 1;
 	}
+	/* daemon(3) may have forked; this is our final pid */
+	daemon_pid = getpid();
+
 	/* We check the return value of write(); don't die on EPIPE */
 	signal(SIGPIPE, SIG_IGN);
 
@@ -220,8 +228,13 @@ main(int argc, char **argv)
 	if (signal_add(&sigchldev, NULL) == -1)
 		errv(0, 1, "signal_add()");
 
-	/* By now, we might have a new PID, so we store our pidfile */
-	if (stat(pidfilenam, &sb) == 0) {
+	/*
+	 * By now, we might have a new PID, so we store our pidfile.
+	 * A pidfile left behind by a dead process (e.g. one we could not
+	 * unlink after dropping privileges) must not stop us from
+	 * writing ours; only treat it as live when its pid is running.
+	 */
+	if (stat(pidfilenam, &sb) == 0 && pidfile_is_running(pidfilenam)) {
 		warnxv(1, "PIDfile %s already exists, skipping", pidfilenam);
 	} else {
 		FILE *pidf;
@@ -294,6 +307,16 @@ void
 sighup_cb(int sig, short ev, void *data)
 {
 	/* Restart and re-read configuration */
+	if (getpid() != daemon_pid) {
+		/*
+		 * A proxy child caught a SIGHUP (e.g. a broadcast HUP).
+		 * It must not re-exec the daemon; shut the session down
+		 * like any other fatal signal instead.
+		 */
+		cleanup_cleanup(cleanup);
+		errxv(0, 0, "Received SIGHUP; quitting");
+	}
+
 	warnxv(0, "Received SIGHUP; restarting");
 	/* XXX cleanup */
 	net_close_listenq();
@@ -325,6 +348,23 @@ unlink_pidfile_cb(void *handler)
 	char *pidfilenam = handler;
 
 	unlink(pidfilenam);
+}
+
+static int
+pidfile_is_running(char *pidfilenam)
+{
+	FILE *f;
+	pid_t pid;
+	int running = 0;
+
+	if ((f = fopen(pidfilenam, "r")) == NULL)
+		return (0);
+	if (fscanf(f, "%d", &pid) == 1 &&
+	    (kill(pid, 0) == 0 || errno == EPERM))
+		running = 1;
+	fclose(f);
+
+	return (running);
 }
 
 static void

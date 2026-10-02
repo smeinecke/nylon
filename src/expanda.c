@@ -26,9 +26,9 @@ char **
 expanda(const char *_str)
 {
 	char **arr = NULL, *tok, *str, *orig;
-	u_int i, ac;
+	u_int i;
 
-	ac = i = 0;
+	i = 0;
 
 	if ((orig = str = strdup(_str)) == NULL)
 		return (NULL);

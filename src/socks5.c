@@ -298,6 +298,7 @@ socks5_bind(int clisock, struct sockaddr_in *tgt_in, struct socks5_req *req5)
         if ((tgtsock = accept(listensock, (struct sockaddr *)&cli_in, &len)) == -1)
 		goto out;
 
+        req5->rsv = 0;
         req5->destaddr = cli_in.sin_addr.s_addr;
         req5->destport = cli_in.sin_port;
 

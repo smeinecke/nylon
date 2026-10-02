@@ -22,6 +22,7 @@
 
 #include <errno.h>
 #include <fcntl.h>
+#include <signal.h>
 #include <netdb.h>
 #include <stdio.h>
 #include <string.h>
@@ -272,26 +273,26 @@ net_close_listenq(void)
 static void
 net_accept(int fd, short ev, void *data)
 {
-	struct sockaddr cliaddr;
+	struct sockaddr_in cliaddr;
 	socklen_t addrlen = sizeof(cliaddr);
 	int clisock, remsock;
 	struct listenq *lq = (struct listenq *)data;
 	struct conndesc *conn = lq->conn;
 
-	if ((clisock = accept(fd, &cliaddr, &addrlen)) == -1) {
+	if ((clisock = accept(fd, (struct sockaddr *)&cliaddr, &addrlen)) == -1) {
 		warnv(0, "accept()");
 		goto out;
 	}
 
-	if (!access_host((struct sockaddr_in *)&cliaddr)) {
+	if (!access_host(&cliaddr)) {
 		warnxv(2, "Client %s rejected",
-		    inet_ntoa(((struct sockaddr_in *)&cliaddr)->sin_addr));
+		    inet_ntoa(cliaddr.sin_addr));
 		goto out;
 	}
 
 	if (maxchildren > 0 && nchildren >= maxchildren) {
 		warnxv(2, "Client %s rejected: connection limit reached",
-		    inet_ntoa(((struct sockaddr_in *)&cliaddr)->sin_addr));
+		    inet_ntoa(cliaddr.sin_addr));
 		goto out;
 	}
 
@@ -334,7 +335,18 @@ net_accept(int fd, short ev, void *data)
 			cleanup_cleanup(cleanup);
 			errxv(0, 1, "Error setting up proxy");
 		}
-		signal_setup();
+		/*
+		 * The parent's libevent signal handlers were inherited by
+		 * fork() and point at the dead parent event base; leaving
+		 * them would silently swallow signals.  Reset to default
+		 * so a proxy child dies normally on TERM/HUP/INT instead
+		 * of running daemon-level handlers or ignoring signals.
+		 * SIGPIPE stays ignored (set once in main).
+		 */
+		signal(SIGHUP, SIG_DFL);
+		signal(SIGINT, SIG_DFL);
+		signal(SIGTERM, SIG_DFL);
+		signal(SIGCHLD, SIG_DFL);
 		event_dispatch();
 		errxv(0, 1, "Event error");
 	default:
