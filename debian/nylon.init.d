@@ -17,6 +17,12 @@ NAME=nylon
 DESC="Nylon SOCKS daemon"
 PIDFILE=/var/run/$NAME.pid
 CONFFILE=/etc/$NAME.conf
+DAEMON_OPTS=""
+
+# Read optional defaults (CONFFILE, DAEMON_OPTS)
+if [ -f /etc/default/$NAME ]; then
+	. /etc/default/$NAME
+fi
 
 test -f $DAEMON || exit 0
 
@@ -46,7 +52,7 @@ case "$1" in
 	echo -n "Starting $DESC: "
 	touch_pidfile
 	start-stop-daemon --start --quiet --oknodo --pidfile $PIDFILE \
-		--exec $DAEMON -- 
+		--exec $DAEMON -- $DAEMON_OPTS
 	echo "$NAME."
 	;;
   stop)
@@ -78,7 +84,7 @@ case "$1" in
 	sleep 1
 	touch_pidfile
 	start-stop-daemon --start --quiet --pidfile $PIDFILE \
-	  --exec $DAEMON --
+	  --exec $DAEMON -- $DAEMON_OPTS
 	echo "$NAME."
 	;;
   *)

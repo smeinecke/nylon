@@ -33,7 +33,7 @@ expanda(const char *_str)
 	if ((str = strdup(_str)) == NULL)
 		return (NULL);
 
-	while((tok = strsep(&str, " ")) != NULL) {
+	while((tok = strsep(&str, " \t")) != NULL) {
 		if (*tok == '\0')
 			continue;
 

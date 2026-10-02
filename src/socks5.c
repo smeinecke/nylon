@@ -32,6 +32,8 @@
 #define SOCKS5_CD_CONNECT     1
 #define SOCKS5_CD_BIND        2
 #define SOCKS5_CD_UDP_ASSOC   3
+#define SOCKS5_AUTH_NOAUTH    0x00
+#define SOCKS5_AUTH_NOMETHOD  0xff
 
 /*
  * XXX proper error replies
@@ -61,6 +63,7 @@ int
 socks5_negotiate(int clisock, struct conndesc *conn)
 {
 	u_int i;
+	int has_noauth;
 	char hostname[256];
 	u_char nmethods, len, junk;
 	struct sockaddr_in rem_in;
@@ -83,25 +86,30 @@ socks5_negotiate(int clisock, struct conndesc *conn)
 
 	/* Eat up methods */
 
-	i = 0;
-	while (i++ < nmethods)
+	/*
+	 * We don't support any authentication methods yet, so only
+	 * "no authentication required" (0x00) is acceptable.
+	 */
+	i = has_noauth = 0;
+	while (i++ < nmethods) {
 		if (atomicio(read, clisock, &junk, 1) != 1) {
 			warnv(1, "read()");
 			return (-1);
 		}
-
-	/*
-	 * We don't support any authentication methods yet, so simply
-	 * ignore it and send reply with no authentication required.
-	 */
+		if (junk == SOCKS5_AUTH_NOAUTH)
+			has_noauth = 1;
+	}
 
 	rep5.ver = 5;
-	rep5.res = 0;
+	rep5.res = has_noauth ? SOCKS5_AUTH_NOAUTH : SOCKS5_AUTH_NOMETHOD;
 
 	if (atomicio(write, clisock, &rep5, 2) != 2) {
 		warnv(1, "write()");
 		return (-1);
 	}
+
+	if (!has_noauth)
+		return (-1);
 
 	/* Receive data up to atyp */
 	if (atomicio(read, clisock, &req5, 4) != 4) {
@@ -187,7 +195,7 @@ socks5_connect(int clisock, struct sockaddr_in *rem_in, struct socks5_req *req5,
 	if ((ai = conn->bind_ai) != NULL) {
 		if (conn->bind_if_name != NULL) {
 			if (setsockopt(remsock, SOL_SOCKET, SO_BINDTODEVICE,
-			    conn->bind_if_name, IFNAMSIZ-1) == -1) {
+			    conn->bind_if_name, strlen(conn->bind_if_name) + 1) == -1) {
 				warnv(0, "bind device()");
 				goto fail;
 			}
@@ -241,7 +249,7 @@ socks5_connect(int clisock, struct sockaddr_in *rem_in, struct socks5_req *req5,
 static int
 socks5_bind(int clisock, struct sockaddr_in *tgt_in, struct socks5_req *req5)
 {
-        struct sockaddr_in cli_in;
+        struct sockaddr_in cli_in, rem_in;
 	socklen_t len;
 	int tgtsock = -1, listensock;
 
@@ -260,9 +268,14 @@ socks5_bind(int clisock, struct sockaddr_in *tgt_in, struct socks5_req *req5)
 		goto out;
         }
 
-	/* Reply: success */
+	/* Reply: success, with the address/port we are listening on */
 	req5->atyp = SOCKS5_ATYP_IPV4;
 	req5->cd = 0;
+	len = sizeof(rem_in);
+	if (getsockname(listensock, (struct sockaddr *)&rem_in, &len) == 0) {
+		req5->destaddr = rem_in.sin_addr.s_addr;
+		req5->destport = rem_in.sin_port;
+	}
 
 	if (atomicio(write, clisock, req5, 10) != 10)
 		goto out;

@@ -103,7 +103,8 @@ makechain(void *_head, char **hostlist)
 			char *end;
 			long bits = strtol(*host + i + 1, &end, 10);
 
-			if (*end != '\0' || bits < 0 || bits > 32) {
+			if (end == *host + i + 1 || *end != '\0' ||
+			    bits < 0 || bits > 32) {
 				warnxv(1, "Invalid prefix length in %s", *host);
 				goto fail;
 			}

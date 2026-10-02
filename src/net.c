@@ -79,6 +79,7 @@ struct listenq {
 
 static TAILQ_HEAD(listenqh, listenq) listenq_head;
 extern cleanup_t *cleanup;
+extern int nchildren, maxchildren;
 static char connstr[512];
 
 static struct addrinfo  *get_ai_from_ifip(char *, char *);
@@ -232,13 +233,26 @@ net_setup_cleanup(void *_head)
 {
 	struct listenqh *head = (struct listenqh *)_head;
 	struct listenq *lq;
+	struct conndesc *conn = NULL;
 
 	while ((lq = TAILQ_FIRST(head)) != NULL) {
+		conn = lq->conn;	/* shared by all listenq entries */
 		TAILQ_REMOVE(head, lq, next);
 		close(lq->sock);
-		free(lq->conn);
 		event_del(&lq->ev);
 		free(lq);
+	}
+
+	if (conn != NULL) {
+		if (conn->mirror_ai != NULL)
+			freeaddrinfo(conn->mirror_ai);
+		if (conn->bind_ai != NULL)
+			freeaddrinfo(conn->bind_ai);
+		if (conn->serv_ai != NULL)
+			freeaddrinfo(conn->serv_ai);
+		if (conn->chain_ai != NULL)
+			freeaddrinfo(conn->chain_ai);
+		free(conn);
 	}
 }
 
@@ -275,11 +289,23 @@ net_accept(int fd, short ev, void *data)
 		goto out;
 	}
 
+	if (maxchildren > 0 && nchildren >= maxchildren) {
+		warnxv(2, "Client %s rejected: connection limit reached",
+		    inet_ntoa(((struct sockaddr_in *)&cliaddr)->sin_addr));
+		goto out;
+	}
+
 	switch (fork()) {
 	case -1:
 		warnv(0, "fork()");
 		break;
 	case 0:
+		/*
+		 * Bound all blocking negotiation I/O (handshake reads,
+		 * resolver, connect, BIND accept).  SIGALRM's default
+		 * action terminates the child.
+		 */
+		alarm(60);
 		if ((remsock = net_negotiate(clisock, conn)) == NET_FAIL) {
 			close(clisock);
 			errxv(1, 1, "Negotiation failed");
@@ -287,6 +313,7 @@ net_accept(int fd, short ev, void *data)
 			/* SOCKS4A command 0xf0 succeeded */
 			exit(0);
 		}
+		alarm(0);
 
 		assert(remsock >= 0);
 
@@ -311,6 +338,7 @@ net_accept(int fd, short ev, void *data)
 		event_dispatch();
 		errxv(0, 1, "Event error");
 	default:
+		nchildren++;
 		break;
 	}
 
@@ -617,9 +645,10 @@ get_ai_from_ifip(char *ifip, char *port)
 		return (NULL);
 	}
 
-	strlcpy(ifr.ifr_name, ifip, IFNAMSIZ);
-
-	if (ioctl(fd, SIOCGIFADDR, &ifr) == -1) {
+	/* Interface names fit in IFNAMSIZ; longer input is a host/ip */
+	if (strlcpy(ifr.ifr_name, ifip, IFNAMSIZ) >= IFNAMSIZ)
+		xerrno = ENODEV;
+	else if (ioctl(fd, SIOCGIFADDR, &ifr) == -1) {
 		xerrno = errno;
 	} else {
 		/*

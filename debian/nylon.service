@@ -5,7 +5,7 @@ After=network.target
 [Service]
 Type=simple
 Restart=always
-ExecStart=/usr/sbin/nylon -c $CONFFILE -f
+ExecStart=/usr/sbin/nylon -c $CONFFILE -f $DAEMON_OPTS
 ExecReload = /bin/kill -HUP $MAINPID
 EnvironmentFile=-/etc/default/nylon
 

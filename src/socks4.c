@@ -146,7 +146,7 @@ _socks4_tryconnect(int clisock, struct sockaddr_in *rem_in,
 	if ((ai = conn->bind_ai) != NULL) {
 		if (conn->bind_if_name != NULL) {
 			if (setsockopt(sock, SOL_SOCKET, SO_BINDTODEVICE,
-			    conn->bind_if_name, IFNAMSIZ-1) == -1) {
+			    conn->bind_if_name, strlen(conn->bind_if_name) + 1) == -1) {
 				warnv(0, "bind device()");
 				close(sock);
 				return (-1);

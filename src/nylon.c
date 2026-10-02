@@ -48,6 +48,8 @@ char **xargv;
 int    xargc;
 int    noresolve;
 int    verbose_dump;
+int    nchildren;		/* Current number of proxy children */
+int    maxchildren;		/* Configured limit; 0 = unlimited */
 
 #ifdef HAVE___PROGNAME
 extern char *__progname;
@@ -106,6 +108,7 @@ main(int argc, char **argv)
 		CONF_SAVE(pidfilenam, conf_get_str("General", "PIDFile"));
 		verbose = conf_get_num("General", "Verbose", 0);
 		use_syslog = conf_get_num("General", "Syslog", 0);
+		maxchildren = conf_get_num("General", "No-Simultaneous-Conn", 0);
 	}
 
 	while ((opt = getopt(argc, argv, GETOPT_STR)) != -1)
@@ -165,6 +168,9 @@ main(int argc, char **argv)
 	if (bind_port == NULL && mirror_addr == NULL)
 		bind_port = "1080";
 
+	if (!support && mirror_addr == NULL)
+		errxv(0, 1, "Cannot disable both SOCKS4 and SOCKS5");
+
 	if (!foreground) {
 		/*
 		 * We retain curdir here, so that SIGHUP works
@@ -176,6 +182,9 @@ main(int argc, char **argv)
 			errv(0, 1, "daemon()");
 		use_syslog = 1;
 	}
+	/* We check the return value of write(); don't die on EPIPE */
+	signal(SIGPIPE, SIG_IGN);
+
 	event_init();
 
 	if ((cleanup = cleanup_new()) == NULL)
@@ -266,8 +275,15 @@ sigchld_cb(int sig, short ev, void *data)
 	pid_t pid;
 
 	/* The Grim Children Reaper */
-	while ((pid = waitpid(-1, &status, WNOHANG)) > 0 ||
-	    (pid < 0 && errno == EINTR));
+	for (;;) {
+		if ((pid = waitpid(-1, &status, WNOHANG)) > 0) {
+			nchildren--;
+			continue;
+		}
+		if (pid < 0 && errno == EINTR)
+			continue;
+		break;
+	}
 }
 
 static void
