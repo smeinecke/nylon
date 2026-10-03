@@ -1,3 +1,11 @@
+nylon (1.21-4) unstable; urgency=medium
+
+  * Re-release; no code changes. Bump Debian revision past the legacy
+    1.21-3+debN rebuilds published in the greenSec repository so the new
+    per-distribution builds upgrade cleanly everywhere.
+
+ -- Stefan Meinecke <meinecke@greensec.de>  Sat, 03 Oct 2026 17:10:00 +0200
+
 nylon (1.21-2) unstable; urgency=medium
 
   * Fix SOCKS5 CONNECT NULL-deref crash when no connecting interface is set.
