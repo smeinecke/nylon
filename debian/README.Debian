@@ -1,6 +1,22 @@
 nylon for Debian
 ----------------
 
-<possible notes regarding this package - if none, delete this file>
+The daemon's configuration lives in /etc/nylon.conf.  Extra command
+line options can be set in /etc/default/nylon (DAEMON_OPTS).
 
- -- unknown <stefan@build.greensec.de>  Tue, 24 May 2016 07:39:35 -0400
+Security defaults worth knowing:
+
+  * Only localhost clients are allowed (Allow-IP=127.0.0.1/32).
+    Widen Allow-IP only together with a destination policy if the
+    proxy must serve other hosts.
+
+  * Allow-Target-IP/Deny-Target-IP restrict where clients may connect
+    (e.g. blocking loopback, link-local and RFC1918 destinations);
+    see /etc/nylon.conf and nylon(1).
+
+  * When started as root the daemon drops privileges to the user and
+    group configured with User=/Group= (default: nobody).  Privilege
+    dropping is skipped when Connecting-Interface names a network
+    interface, since SO_BINDTODEVICE requires CAP_NET_RAW.
+
+ -- Stefan Meinecke <meinecke@greensec.de>  Fri, 02 Oct 2026 22:00:00 +0200

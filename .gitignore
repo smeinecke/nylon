@@ -6,3 +6,4 @@ include/config.h
 include/stamp-h1
 nylon
 .*.*
+debian/artifacts/

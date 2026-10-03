@@ -61,3 +61,38 @@ jobs:
         with:
           name: "packages-${{ matrix.os-version }}"
           path: ./debian/artifacts/*
+
+  # jessie's apt (1.0.x) cannot do 'apt-get build-dep ./dir', which the
+  # build-deb-action relies on, so build it with a plain docker run.
+  build-deb-jessie:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Build package (jessie)
+        run: |
+          mkdir -p debian/artifacts
+          docker run --rm -v "$PWD:/src" -w /src debian:jessie-slim bash -c '
+            set -e
+            printf "%s\n" \
+              "deb [trusted=yes] http://archive.debian.org/debian jessie main" \
+              "deb [trusted=yes] http://archive.debian.org/debian jessie-backports main" \
+              "deb [trusted=yes] http://archive.debian.org/debian-security jessie/updates main" \
+              > /etc/apt/sources.list
+            echo "Acquire::Check-Valid-Until \"false\";" \
+              > /etc/apt/apt.conf.d/99eol-dists
+            apt-get update
+            # debhelper >= 10 (for compat level 10) is only in backports
+            DEBIAN_FRONTEND=noninteractive apt-get install -y \
+              -t jessie-backports debhelper dpkg-dev build-essential libevent-dev
+            mkdir -p /tmp/build && cp -a /src/. /tmp/build/src
+            cd /tmp/build/src
+            DEB_BUILD_OPTIONS=noautodbgsym \
+              dpkg-buildpackage -us -uc -b
+            mkdir -p /src/debian/artifacts
+            cp ../nylon_*.deb /src/debian/artifacts/
+            '
+      - name: Upload deb files
+        uses: actions/upload-artifact@v6
+        with:
+          name: "packages-jessie"
+          path: ./debian/artifacts/*
