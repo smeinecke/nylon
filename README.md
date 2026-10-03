@@ -27,6 +27,21 @@ of its target release, so runtime dependencies match the distribution
 (e.g. `libevent-2.0-5` on jessie/stretch vs `libevent-2.1-7t64` on
 trixie).
 
+The set of target images lives in `.github/supported-releases.txt`;
+each CI job runs `scripts/ci/setup-build-env.sh`, `scripts/build.sh`
+and `scripts/test/smoke.sh` inside a container of that image, so the
+same build can be reproduced locally:
+
+```sh
+docker run --rm -v "$PWD:/workspace" -w /workspace debian:bookworm \
+    bash -c './scripts/ci/setup-build-env.sh && ./scripts/build.sh && ./scripts/test/smoke.sh'
+```
+
+The produced `nylon_<version>+<dist>_amd64.deb` lands in the working
+directory.  Tag pushes (`v*`) additionally publish the packages as a
+GitHub release and, when the `APT_SIGNING_KEY` repository secret is
+configured, to the apt repository.
+
 To build the package yourself on a Debian system:
 
 ```sh

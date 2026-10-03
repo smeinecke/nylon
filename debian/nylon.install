@@ -1,3 +1,2 @@
 src/nylon usr/sbin
-debian/nylon.service lib/systemd/system/
 debian/nylon.conf etc/

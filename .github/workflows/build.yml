@@ -1,98 +1,140 @@
 name: Build package
 
-# Controls when the workflow will run
 on:
-  # Triggers the workflow on push or pull request events but only for the master branch
   push:
     branches: [ master ]
+    tags: [ 'v*' ]
   pull_request:
     branches: [ master ]
-
-  # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 jobs:
-  build-debs:
+  prepare:
+    name: Prepare release matrix
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      os_matrix: ${{ steps.releases.outputs.os_matrix }}
+      repo_versions: ${{ steps.releases.outputs.repo_versions }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Load Supported Releases
+        id: releases
+        run: |
+          set -eu
+          mapfile -t releases < <(grep -E '^[a-z]+(/[a-z]+)?:[a-z0-9]+$' .github/supported-releases.txt)
+          if [ "${#releases[@]}" -eq 0 ]; then
+            echo "No supported releases found in .github/supported-releases.txt"
+            exit 1
+          fi
+
+          os_matrix="$(printf '%s\n' "${releases[@]}" | jq -R . | jq -s -c .)"
+          repo_versions="$(printf '%s\n' "${releases[@]}" | cut -d: -f2)"
+
+          echo "os_matrix=${os_matrix}" >> "$GITHUB_OUTPUT"
+          {
+            echo "repo_versions<<EOF"
+            printf '%s\n' "${repo_versions}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build packages
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: prepare
     strategy:
       fail-fast: false
       matrix:
-        os-version: ["stretch", "buster", "bullseye", "bookworm", "trixie"]
+        os-version: ${{ fromJson(needs.prepare.outputs.os_matrix) }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: jtdor/build-deb-action@v1
-        env:
-          DEB_BUILD_OPTIONS: noautodbgsym
-        with:
-          docker-image: "debian:${{ matrix.os-version }}-slim"
-          buildpackage-opts: --build=binary --no-sign
-          # EOL dists need rewritten apt sources: stretch and buster only
-          # exist on archive.debian.org; bullseye-security was removed from
-          # deb.debian.org but is not archived yet, so pin bullseye to the
-          # snapshot its Docker image was built from (matches the image's
-          # installed package versions).
-          setup-hook: |
-            case "${{ matrix.os-version }}" in
-              stretch)
-                printf '%s\n' \
-                  'deb http://archive.debian.org/debian stretch main' \
-                  'deb http://archive.debian.org/debian-security stretch/updates main' \
-                  > /etc/apt/sources.list
-                ;;
-              buster)
-                printf '%s\n' \
-                  'deb http://archive.debian.org/debian buster main' \
-                  'deb http://archive.debian.org/debian buster-updates main' \
-                  'deb http://archive.debian.org/debian-security buster/updates main' \
-                  > /etc/apt/sources.list
-                ;;
-              bullseye)
-                printf '%s\n' \
-                  'deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye main' \
-                  'deb http://snapshot.debian.org/archive/debian-security/20260824T000000Z bullseye-security main' \
-                  'deb http://snapshot.debian.org/archive/debian/20260824T000000Z bullseye-updates main' \
-                  > /etc/apt/sources.list
-                ;;
-            esac
-            echo 'Acquire::Check-Valid-Until "false";' \
-              > /etc/apt/apt.conf.d/99eol-dists
-      - name: Upload deb files
-        uses: actions/upload-artifact@v6
-        with:
-          name: "packages-${{ matrix.os-version }}"
-          path: ./debian/artifacts/*
-
-  # jessie's apt (1.0.x) cannot do 'apt-get build-dep ./dir', which the
-  # build-deb-action relies on, so build it with a plain docker run.
-  build-deb-jessie:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v6
-      - name: Build package (jessie)
+      - name: Checkout code
+        uses: actions/checkout@v7
+      - name: Extract release codename
         run: |
-          mkdir -p debian/artifacts
-          docker run --rm -v "$PWD:/src" -w /src debian:jessie-slim bash -c '
-            set -e
-            printf "%s\n" \
-              "deb [trusted=yes] http://archive.debian.org/debian jessie main" \
-              "deb [trusted=yes] http://archive.debian.org/debian jessie-backports main" \
-              "deb [trusted=yes] http://archive.debian.org/debian-security jessie/updates main" \
-              > /etc/apt/sources.list
-            echo "Acquire::Check-Valid-Until \"false\";" \
-              > /etc/apt/apt.conf.d/99eol-dists
-            apt-get update
-            # debhelper >= 10 (for compat level 10) is only in backports
-            DEBIAN_FRONTEND=noninteractive apt-get install -y \
-              -t jessie-backports debhelper dpkg-dev build-essential libevent-dev
-            mkdir -p /tmp/build && cp -a /src/. /tmp/build/src
-            cd /tmp/build/src
-            DEB_BUILD_OPTIONS=noautodbgsym \
-              dpkg-buildpackage -us -uc -b
-            mkdir -p /src/debian/artifacts
-            cp ../nylon_*.deb /src/debian/artifacts/
-            '
+          os_version="${{ matrix.os-version }}"
+          echo "debian_release=${os_version##*:}" >> "$GITHUB_ENV"
+      - name: Prepare and build inside target container
+        # The build runs via docker CLI rather than a job container or
+        # node-based action: node20 actions require glibc >= 2.28 which
+        # the EOL images lack, and jessie's apt cannot do the directory
+        # form of 'apt-get build-dep'.
+        run: |
+          set -eu
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/workspace" \
+            -w /workspace \
+            "${{ matrix.os-version }}" \
+            bash -c './scripts/ci/setup-build-env.sh && ./scripts/build.sh && ./scripts/test/smoke.sh'
       - name: Upload deb files
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
-          name: "packages-jessie"
-          path: ./debian/artifacts/*
+          name: packages-${{ env.debian_release }}
+          path: ./nylon_*.deb
+          if-no-files-found: error
+
+  merge-artefacts:
+    name: Merge all deb files to single artifact
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    needs: build
+    steps:
+      - name: debian-packages
+        uses: actions/upload-artifact/merge@v7
+        with:
+          name: merged-artifacts
+          pattern: packages-*
+
+  add_release:
+    name: Add package to release
+    needs: merge-artefacts
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: merged-artifacts
+      - name: Release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: ./*.deb
+
+  add_repo:
+    name: Add packages to public debian repository
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs:
+      - merge-artefacts
+      - prepare
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: "merged-artifacts"
+      - name: Check signing key
+        id: key
+        run: |
+          if [ -n "${APT_SIGNING_KEY:-}" ]; then echo "present=true" >> "$GITHUB_OUTPUT"; else echo "present=false" >> "$GITHUB_OUTPUT"; echo "::notice::APT_SIGNING_KEY not configured; skipping apt repo publish"; fi
+        env:
+          APT_SIGNING_KEY: ${{ secrets.APT_SIGNING_KEY }}
+      - name: Add releases to repo
+        if: steps.key.outputs.present == 'true'
+        uses: smeinecke/apt-repo-action@v2.2.1
+        with:
+          github_token: ${{ github.token }}
+          repo_supported_arch: |
+            amd64
+          repo_supported_version: ${{ needs.prepare.outputs.repo_versions }}
+          file: |
+            *.deb
+          version_by_filename: true
+          private_key: ${{ secrets.APT_SIGNING_KEY }}
+          key_passphrase: ""
+          skip_duplicates: true

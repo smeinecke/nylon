@@ -1,0 +1,6 @@
+debian:bookworm
+debian:trixie
+debian/eol:jessie
+debian/eol:stretch
+debian/eol:buster
+debian/eol:bullseye
